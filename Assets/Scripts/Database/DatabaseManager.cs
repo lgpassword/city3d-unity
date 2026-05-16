@@ -13,12 +13,24 @@ public class DatabaseManager
     // SQLite 连接实例。
     private SQLiteConnection _db;
 
+    // 应用配置。
+    private readonly AppConfig _config;
+
+    /// <summary>
+    /// 创建数据库管理器。
+    /// </summary>
+    /// <param name="config">应用配置。</param>
+    public DatabaseManager(AppConfig config)
+    {
+        _config = config;
+    }
+
     /// <summary>
     /// 初始化数据库连接、数据表和默认产品规格。
     /// </summary>
     public void Initialize()
     {
-        var path = Path.Combine(Application.persistentDataPath, "city3d.db");
+        var path = _config.GetDatabasePath();
         _db = new SQLiteConnection(path);
         _db.CreateTable<LocationRecord>();
         _db.CreateTable<SceneRecord>();
@@ -60,7 +72,7 @@ public class DatabaseManager
     /// </summary>
     /// <returns>位置记录列表。</returns>
     public List<LocationRecord> GetLocations()
-        => _db.Table<LocationRecord>().OrderByDescending(x => x.Id).Take(30).ToList();
+        => _db.Table<LocationRecord>().OrderByDescending(x => x.Id).Take(_config.maxLocationListCount).ToList();
 
     /// <summary>
     /// 删除指定位置记录。
@@ -94,7 +106,7 @@ public class DatabaseManager
     /// </summary>
     /// <returns>场景记录列表。</returns>
     public List<SceneRecord> GetScenes()
-        => _db.Table<SceneRecord>().OrderByDescending(x => x.Id).Take(20).ToList();
+        => _db.Table<SceneRecord>().OrderByDescending(x => x.Id).Take(_config.maxSceneListCount).ToList();
 
     /// <summary>
     /// 获取指定场景的 JSON 数据。
@@ -120,15 +132,14 @@ public class DatabaseManager
     /// <returns>缓存 JSON 数据，未命中时返回空。</returns>
     public string GetOsmCache(double lat, double lon, int r)
     {
-        double g = 0.002;
-        var now = DateTime.Now.ToString("s");
+        var now = DateTime.Now;
 
         // 使用经纬度近似网格和半径判断缓存是否可复用。
         return _db.Table<OsmCacheRecord>()
-            .Where(x => Math.Abs(x.CenterLat - lat) < g &&
-                        Math.Abs(x.CenterLon - lon) < g &&
+            .Where(x => Math.Abs(x.CenterLat - lat) < _config.cacheGridPrecision &&
+                        Math.Abs(x.CenterLon - lon) < _config.cacheGridPrecision &&
                         x.RadiusM == r &&
-                        x.ExpireAt.CompareTo(now) > 0)
+                        x.ExpireAt > now)
             .OrderByDescending(x => x.Id)
             .FirstOrDefault()?.DataJson;
     }
@@ -147,7 +158,7 @@ public class DatabaseManager
             CenterLon = lon,
             RadiusM = r,
             DataJson = json,
-            ExpireAt = DateTime.Now.AddHours(48).ToString("s")
+            ExpireAt = DateTime.Now.AddHours(_config.osmCacheExpiryHours)
         });
 
     /// <summary>

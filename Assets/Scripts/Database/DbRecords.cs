@@ -94,7 +94,7 @@ public class OsmCacheRecord
     public string DataJson { get; set; } = "";
 
     // 缓存过期时间。
-    public string ExpireAt { get; set; } = "";
+    public DateTime ExpireAt { get; set; } = DateTime.Now.AddHours(48);
 }
 
 /// <summary>

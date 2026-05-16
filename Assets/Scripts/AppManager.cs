@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using UnityEngine;
@@ -20,6 +21,10 @@ public class AppManager : MonoBehaviour
     // UI 管理器。
     public UIManager ui;
 
+    [Header("配置")]
+    // 应用配置。
+    public AppConfig config;
+
     // AI 服务客户端。
     private AiClient _ai;
 
@@ -38,15 +43,18 @@ public class AppManager : MonoBehaviour
     // 最近一次生成或加载的场景。
     private CityScene _lastScene;
 
+    // 场景生成取消令牌源。
+    private CancellationTokenSource _generationCts;
+
     // 初始化核心服务。
     private void Awake()
     {
         I = this;
-        _db = new DatabaseManager();
+        _db = new DatabaseManager(config);
         _db.Initialize();
-        _ai = new AiClient();
-        _osm = new OsmFetcher(_db);
-        _elev = new ElevationFetcher();
+        _ai = new AiClient(config);
+        _osm = new OsmFetcher(_db, config);
+        _elev = new ElevationFetcher(config);
     }
 
     // 启动后刷新收藏列表和场景列表。
@@ -69,6 +77,7 @@ public class AppManager : MonoBehaviour
         }
         catch (Exception ex)
         {
+            Debug.LogError($"[图片加载] 读取失败：{ex.GetType().Name} - {ex.Message}\n{ex.StackTrace}");
             ui.SetStatus($"读取图片失败：{ex.Message}");
         }
     }
@@ -84,6 +93,11 @@ public class AppManager : MonoBehaviour
             return;
         }
 
+        // 取消之前的生成操作。
+        _generationCts?.Cancel();
+        _generationCts = new CancellationTokenSource();
+        var token = _generationCts.Token;
+
         double lat = ui.GetLat(), lon = ui.GetLon();
         int radius = ui.GetRadius();
 
@@ -92,9 +106,9 @@ public class AppManager : MonoBehaviour
         try
         {
             // 并行执行 AI 识别、OSM 建筑查询和海拔查询。
-            var t1 = _ai.RecognizeAsync(_imageBytes);
-            var t2 = _osm.FetchAsync(lat, lon, radius);
-            var t3 = _elev.FetchAsync(lat, lon);
+            var t1 = _ai.RecognizeAsync(_imageBytes, token);
+            var t2 = _osm.FetchAsync(lat, lon, radius, token);
+            var t3 = _elev.FetchAsync(lat, lon, token);
             await Task.WhenAll(t1, t2, t3);
 
             var obj = t1.Result;
@@ -123,14 +137,28 @@ public class AppManager : MonoBehaviour
             ui.SetStatus($"{t2.Result.Count} 栋建筑，海拔 {t3.Result:F0}m，识别：{obj.Name}");
             ui.EnableSave(true);
         }
+        catch (OperationCanceledException)
+        {
+            ui.SetStatus("操作已取消");
+        }
         catch (Exception ex)
         {
+            Debug.LogError($"[场景生成] 生成失败：{ex.GetType().Name} - {ex.Message}\n{ex.StackTrace}");
             ui.SetStatus($"生成场景失败：{ex.Message}");
         }
         finally
         {
             ui.SetBusy(false);
         }
+    }
+
+    /// <summary>
+    /// 取消当前的场景生成操作。
+    /// </summary>
+    public void CancelGeneration()
+    {
+        _generationCts?.Cancel();
+        ui.SetStatus("正在取消操作...");
     }
 
     /// <summary>
