@@ -1,304 +1,396 @@
-﻿using System.Windows;
+using System.IO;
+using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media.Imaging;
+using System.Windows.Media.Media3D;
+using HelixToolkit.Wpf;
 using Microsoft.Win32;
 using City3DDesktop.Services;
-using City3DDesktop.Models;
-using System.IO;
 
 namespace City3DDesktop;
 
 public partial class MainWindow : Window
 {
-    private readonly DatabaseService _databaseService;
-    private readonly AiService _aiService;
-    private readonly OsmService _osmService;
-    private readonly ElevationService _elevationService;
-    private CancellationTokenSource? _cancellationTokenSource;
-    private bool _unityInitialized = false;
+    private readonly Image23DService _aiService;
+    private readonly ModelExportService _exportService;
+
+    private string? _imagePath;
+    private string? _generatedModelPath;
+    private CancellationTokenSource? _cts;
+    private bool _wireframeMode = false;
+
+    // 配置存储
+    private string _tripoApiKey = "";
+    private string _meshyApiKey = "";
 
     public MainWindow()
     {
         InitializeComponent();
+        _aiService = new Image23DService();
+        _exportService = new ModelExportService();
 
-        _databaseService = new DatabaseService();
-        _aiService = new AiService();
-        _osmService = new OsmService();
-        _elevationService = new ElevationService();
-
-        LoadSavedData();
-        UpdateStatus("就绪");
-
-        // 异步初始化Unity
-        Loaded += async (s, e) => await InitializeUnityAsync();
+        _aiService.ProgressChanged += OnProgressChanged;
+        LoadSettings();
     }
 
-    private async Task InitializeUnityAsync()
-    {
-        try
-        {
-            UpdateStatus("正在启动Unity渲染引擎...");
-
-            // Unity可执行文件路径（需要先构建Unity项目）
-            string unityExePath = Path.Combine(
-                AppDomain.CurrentDomain.BaseDirectory,
-                "UnityRenderer",
-                "City3D.exe"
-            );
-
-            // 如果Unity可执行文件不存在，显示提示
-            if (!File.Exists(unityExePath))
-            {
-                UpdateStatus("Unity渲染引擎未找到，请先构建Unity项目");
-                MessageBox.Show(
-                    "Unity渲染引擎未找到！\n\n" +
-                    "请按照以下步骤操作：\n" +
-                    "1. 在Unity中打开主项目\n" +
-                    "2. 选择 File > Build Settings\n" +
-                    "3. 选择 Windows 平台\n" +
-                    "4. 构建到: City3DDesktop/City3DDesktop/bin/Debug/net8.0-windows/UnityRenderer/\n" +
-                    "5. 重新启动此应用\n\n" +
-                    "当前查找路径: " + unityExePath,
-                    "Unity渲染引擎未找到",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
-                return;
-            }
-
-            bool success = await UnityView.StartUnityAsync(unityExePath);
-            if (success)
-            {
-                _unityInitialized = true;
-                UpdateStatus("Unity渲染引擎已就绪");
-            }
-            else
-            {
-                UpdateStatus("Unity渲染引擎启动失败");
-            }
-        }
-        catch (Exception ex)
-        {
-            UpdateStatus($"Unity初始化失败: {ex.Message}");
-            MessageBox.Show($"Unity渲染引擎初始化失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
-
-    private void LoadSavedData()
-    {
-        try
-        {
-            var locations = _databaseService.GetAllLocations();
-            foreach (var location in locations)
-            {
-                LocationsList.Items.Add($"{location.Name} ({location.Latitude:F4}, {location.Longitude:F4})");
-            }
-
-            var scenes = _databaseService.GetAllScenes();
-            foreach (var scene in scenes)
-            {
-                ScenesList.Items.Add($"{scene.Name} - {scene.CreatedAt:yyyy-MM-dd HH:mm}");
-            }
-        }
-        catch (Exception ex)
-        {
-            UpdateStatus($"加载数据失败: {ex.Message}");
-        }
-    }
-
+    // ===== 步骤1: 加载图片 =====
     private void LoadImage_Click(object sender, RoutedEventArgs e)
     {
-        var openFileDialog = new OpenFileDialog
+        var dialog = new OpenFileDialog
         {
-            Filter = "图片文件|*.jpg;*.jpeg;*.png;*.bmp|所有文件|*.*",
-            Title = "选择图片"
+            Filter = "图片文件|*.jpg;*.jpeg;*.png;*.bmp|JPEG|*.jpg;*.jpeg|PNG|*.png|所有文件|*.*",
+            Title = "选择要转换的图片"
         };
 
-        if (openFileDialog.ShowDialog() == true)
-        {
-            PathInput.Text = openFileDialog.FileName;
-            try
-            {
-                var bitmap = new BitmapImage(new Uri(openFileDialog.FileName));
-                PreviewImage.Source = bitmap;
-                UpdateStatus($"已加载图片: {System.IO.Path.GetFileName(openFileDialog.FileName)}");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"加载图片失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-                UpdateStatus("图片加载失败");
-            }
-        }
-    }
-
-    private async void GenerateScene_Click(object sender, RoutedEventArgs e)
-    {
-        if (string.IsNullOrWhiteSpace(PathInput.Text))
-        {
-            MessageBox.Show("请先加载图片", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-
-        if (!double.TryParse(LatInput.Text, out double lat) || !double.TryParse(LonInput.Text, out double lon))
-        {
-            MessageBox.Show("请输入有效的GPS坐标", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-
-        GenerateBtn.IsEnabled = false;
-        ProgressBar.Visibility = Visibility.Visible;
-        _cancellationTokenSource = new CancellationTokenSource();
+        if (dialog.ShowDialog() != true) return;
 
         try
         {
-            UpdateStatus("正在识别图片位置...");
-            string locationName = await _aiService.IdentifyLocationFromImage(PathInput.Text, _cancellationTokenSource.Token);
+            _imagePath = dialog.FileName;
 
-            UpdateStatus($"识别结果: {locationName}，正在获取OSM数据...");
-            double radius = RadiusSlider.Value;
-            OsmData osmData = await _osmService.FetchOsmData(lat, lon, radius, _cancellationTokenSource.Token);
+            // 加载图片预览
+            var bitmap = new BitmapImage();
+            bitmap.BeginInit();
+            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.UriSource = new Uri(_imagePath);
+            bitmap.EndInit();
+            bitmap.Freeze();
 
-            UpdateStatus($"获取到 {osmData.Buildings.Count} 个建筑物和 {osmData.Roads.Count} 条道路，正在获取海拔数据...");
-            double elevation = await _elevationService.GetElevation(lat, lon, _cancellationTokenSource.Token);
+            PreviewImage.Source = bitmap;
+            ImagePlaceholder.Visibility = Visibility.Collapsed;
+            ImagePathText.Text = Path.GetFileName(_imagePath);
+            UpdateStatus($"已加载图片: {Path.GetFileName(_imagePath)} ({bitmap.PixelWidth}x{bitmap.PixelHeight})");
+        }
+        catch (Exception ex)
+        {
+            ShowError($"加载图片失败: {ex.Message}");
+        }
+    }
 
-            UpdateStatus($"场景生成完成！建筑物: {osmData.Buildings.Count}, 道路: {osmData.Roads.Count}, 海拔: {elevation:F1}m");
+    // ===== 步骤2: 生成3D模型 =====
+    private async void Generate_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(_imagePath))
+        {
+            ShowWarning("请先选择一张图片");
+            return;
+        }
 
-            // 如果Unity已初始化，发送场景数据
-            if (_unityInitialized)
-            {
-                UpdateStatus("正在发送场景数据到Unity渲染引擎...");
-                var sceneData = new
-                {
-                    location = locationName,
-                    latitude = lat,
-                    longitude = lon,
-                    radius = radius,
-                    elevation = elevation,
-                    buildings = osmData.Buildings,
-                    roads = osmData.Roads
-                };
+        // 配置AI服务
+        var providerTag = ((ComboBoxItem)AiProviderCombo.SelectedItem).Tag.ToString();
+        var provider = providerTag switch
+        {
+            "Tripo3D" => Image23DService.AiProvider.Tripo3D,
+            "Meshy" => Image23DService.AiProvider.Meshy,
+            _ => Image23DService.AiProvider.Demo
+        };
 
-                bool sent = await UnityView.SendSceneDataAsync(sceneData);
-                if (sent)
-                {
-                    UpdateStatus("场景已发送到Unity渲染引擎");
-                }
-                else
-                {
-                    UpdateStatus("发送场景数据失败");
-                }
-            }
+        var apiKey = provider switch
+        {
+            Image23DService.AiProvider.Tripo3D => _tripoApiKey,
+            Image23DService.AiProvider.Meshy => _meshyApiKey,
+            _ => ""
+        };
 
-            MessageBox.Show(
-                $"场景生成完成！\n\n" +
-                $"位置: {locationName}\n" +
-                $"建筑物: {osmData.Buildings.Count}\n" +
-                $"道路: {osmData.Roads.Count}\n" +
-                $"海拔: {elevation:F1}m",
-                "成功",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
+        if (provider != Image23DService.AiProvider.Demo && string.IsNullOrEmpty(apiKey))
+        {
+            ShowWarning($"请先在'设置'中配置 {provider} 的 API Key\n\n或选择'演示模式'体验完整流程");
+            return;
+        }
+
+        _aiService.Configure(provider, apiKey);
+
+        // 准备UI
+        GenerateBtn.IsEnabled = false;
+        GenerateProgress.Visibility = Visibility.Visible;
+        ProgressText.Visibility = Visibility.Visible;
+        GenerateProgress.Value = 0;
+        ExportBtn.IsEnabled = false;
+
+        _cts = new CancellationTokenSource();
+
+        try
+        {
+            _generatedModelPath = await _aiService.GenerateModelAsync(_imagePath, _cts.Token);
+
+            // 加载并显示生成的模型
+            LoadModel(_generatedModelPath);
+            ExportBtn.IsEnabled = true;
+            UpdateStatus($"✅ 3D模型生成成功: {Path.GetFileName(_generatedModelPath)}");
         }
         catch (OperationCanceledException)
         {
-            UpdateStatus("场景生成已取消");
+            UpdateStatus("操作已取消");
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"生成场景失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-            UpdateStatus("场景生成失败");
+            ShowError($"生成失败: {ex.Message}");
+            UpdateStatus("❌ 生成失败");
         }
         finally
         {
             GenerateBtn.IsEnabled = true;
-            ProgressBar.Visibility = Visibility.Collapsed;
-            _cancellationTokenSource?.Dispose();
-            _cancellationTokenSource = null;
+            GenerateProgress.Visibility = Visibility.Collapsed;
+            ProgressText.Visibility = Visibility.Collapsed;
+            _cts?.Dispose();
+            _cts = null;
         }
     }
 
-    private void SaveScene_Click(object sender, RoutedEventArgs e)
+    private void OnProgressChanged(string message, int percent)
     {
-        if (string.IsNullOrWhiteSpace(SceneNameInput.Text))
+        Dispatcher.Invoke(() =>
         {
-            MessageBox.Show("请输入场景名称", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+            GenerateProgress.Value = percent;
+            ProgressText.Text = $"{message} ({percent}%)";
+            UpdateStatus(message);
+        });
+    }
+
+    // ===== 步骤3: 导出模型 =====
+    private async void Export_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(_generatedModelPath) || !File.Exists(_generatedModelPath))
+        {
+            ShowWarning("请先生成3D模型");
             return;
         }
 
-        if (!double.TryParse(LatInput.Text, out double lat) || !double.TryParse(LonInput.Text, out double lon))
+        var formatTag = ((ComboBoxItem)ExportFormatCombo.SelectedItem).Tag.ToString();
+        var format = formatTag switch
         {
-            MessageBox.Show("请输入有效的GPS坐标", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
+            "STL" => ModelExportService.ExportFormat.STL,
+            "GLTF" => ModelExportService.ExportFormat.GLTF,
+            "FBX" => ModelExportService.ExportFormat.FBX,
+            _ => ModelExportService.ExportFormat.OBJ
+        };
+
+        var ext = ModelExportService.GetExtension(format);
+        var dialog = new SaveFileDialog
+        {
+            Filter = $"{format}文件|*{ext}|所有文件|*.*",
+            FileName = $"{Path.GetFileNameWithoutExtension(_imagePath)}_3D{ext}",
+            Title = $"导出为 {format} 格式"
+        };
+
+        if (dialog.ShowDialog() != true) return;
 
         try
         {
-            var scene = new SceneRecord
+            UpdateStatus($"正在导出为 {format}...");
+            var success = await _exportService.ExportAsync(_generatedModelPath, dialog.FileName, format);
+
+            if (success)
             {
-                Name = SceneNameInput.Text,
-                ImagePath = PathInput.Text,
-                Latitude = lat,
-                Longitude = lon,
-                Radius = RadiusSlider.Value,
-                CreatedAt = DateTime.Now
-            };
+                UpdateStatus($"✅ 已导出: {dialog.FileName}");
+                var result = MessageBox.Show(
+                    $"导出成功！\n\n文件位置:\n{dialog.FileName}\n\n是否打开所在文件夹？",
+                    "导出成功",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Information);
 
-            _databaseService.SaveScene(scene);
-            ScenesList.Items.Add($"{scene.Name} - {scene.CreatedAt:yyyy-MM-dd HH:mm}");
-
-            UpdateStatus($"已保存场景: {scene.Name}");
-            MessageBox.Show("场景已保存", "成功", MessageBoxButton.OK, MessageBoxImage.Information);
+                if (result == MessageBoxResult.Yes)
+                {
+                    System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{dialog.FileName}\"");
+                }
+            }
+            else
+            {
+                ShowError("导出失败");
+            }
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"保存场景失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            ShowError($"导出错误: {ex.Message}");
         }
     }
 
-    private void SaveLocation_Click(object sender, RoutedEventArgs e)
+    // ===== 3D模型加载与显示 =====
+    private void LoadModel(string modelPath)
     {
-        if (!double.TryParse(LatInput.Text, out double lat) || !double.TryParse(LonInput.Text, out double lon))
-        {
-            MessageBox.Show("请输入有效的GPS坐标", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-
-        string locationName = string.IsNullOrWhiteSpace(SceneNameInput.Text) ? "未命名位置" : SceneNameInput.Text;
-
         try
         {
-            var location = new LocationRecord
+            ModelContainer.Children.Clear();
+
+            // 仅支持OBJ格式预览（GLB/GLTF需要其他库）
+            if (!modelPath.EndsWith(".obj", StringComparison.OrdinalIgnoreCase))
             {
-                Name = locationName,
-                Latitude = lat,
-                Longitude = lon,
-                CreatedAt = DateTime.Now
-            };
+                EmptyState.Visibility = Visibility.Visible;
+                UpdateStatus("⚠️ 当前格式不支持预览，但可以导出");
+                return;
+            }
 
-            _databaseService.SaveLocation(location);
-            LocationsList.Items.Add($"{location.Name} ({location.Latitude:F4}, {location.Longitude:F4})");
+            var reader = new ObjReader();
+            var model = reader.Read(modelPath);
 
-            UpdateStatus($"已收藏位置: {location.Name}");
-            MessageBox.Show("位置已收藏", "成功", MessageBoxButton.OK, MessageBoxImage.Information);
+            if (model == null)
+            {
+                ShowError("无法读取生成的3D模型");
+                return;
+            }
+
+            var visual = new ModelVisual3D { Content = model };
+            ModelContainer.Children.Add(visual);
+
+            EmptyState.Visibility = Visibility.Collapsed;
+            Viewport3D.ZoomExtents();
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"保存位置失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            ShowError($"加载模型失败: {ex.Message}");
         }
     }
 
-    private void UpdateStatus(string message)
+    // ===== 视图控制 =====
+    private void ResetView_Click(object sender, RoutedEventArgs e)
     {
-        StatusText.Text = message;
+        Viewport3D.ZoomExtents();
+        UpdateStatus("视角已重置");
     }
 
-    private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+    private void ToggleWireframe_Click(object sender, RoutedEventArgs e)
     {
-        _cancellationTokenSource?.Cancel();
-        UnityView.StopUnity();
+        _wireframeMode = !_wireframeMode;
+        // 简化版本：切换背景色作为视觉反馈
+        Viewport3D.Background = _wireframeMode
+            ? System.Windows.Media.Brushes.White
+            : new System.Windows.Media.SolidColorBrush(
+                System.Windows.Media.Color.FromRgb(0x1a, 0x1a, 0x2e));
+        UpdateStatus(_wireframeMode ? "线框模式" : "实体模式");
+    }
+
+    // ===== 设置 =====
+    private void Settings_Click(object sender, RoutedEventArgs e)
+    {
+        var settingsWindow = new Window
+        {
+            Title = "API设置",
+            Width = 500,
+            Height = 380,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner = this,
+            ResizeMode = ResizeMode.NoResize
+        };
+
+        var panel = new StackPanel { Margin = new Thickness(20) };
+
+        panel.Children.Add(new TextBlock
+        {
+            Text = "AI服务API配置",
+            FontSize = 18,
+            FontWeight = FontWeights.Medium,
+            Margin = new Thickness(0, 0, 0, 16)
+        });
+
+        panel.Children.Add(new TextBlock { Text = "Tripo3D API Key:", Margin = new Thickness(0, 8, 0, 4) });
+        var tripoBox = new TextBox { Text = _tripoApiKey, Padding = new Thickness(8) };
+        panel.Children.Add(tripoBox);
+
+        panel.Children.Add(new TextBlock { Text = "Meshy.ai API Key:", Margin = new Thickness(0, 12, 0, 4) });
+        var meshyBox = new TextBox { Text = _meshyApiKey, Padding = new Thickness(8) };
+        panel.Children.Add(meshyBox);
+
+        panel.Children.Add(new TextBlock
+        {
+            Text = "💡 提示：\n• Tripo3D: https://platform.tripo3d.ai/\n• Meshy: https://www.meshy.ai/api\n• 演示模式无需API key",
+            FontSize = 11,
+            Foreground = System.Windows.Media.Brushes.Gray,
+            Margin = new Thickness(0, 16, 0, 16),
+            TextWrapping = TextWrapping.Wrap
+        });
+
+        var buttonPanel = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right
+        };
+
+        var saveBtn = new Button
+        {
+            Content = "保存",
+            Padding = new Thickness(20, 8, 20, 8),
+            Margin = new Thickness(8, 0, 0, 0),
+            IsDefault = true
+        };
+        saveBtn.Click += (s, e) =>
+        {
+            _tripoApiKey = tripoBox.Text;
+            _meshyApiKey = meshyBox.Text;
+            SaveSettings();
+            UpdateStatus("✅ 设置已保存");
+            settingsWindow.Close();
+        };
+
+        var cancelBtn = new Button
+        {
+            Content = "取消",
+            Padding = new Thickness(20, 8, 20, 8),
+            IsCancel = true
+        };
+
+        buttonPanel.Children.Add(cancelBtn);
+        buttonPanel.Children.Add(saveBtn);
+        panel.Children.Add(buttonPanel);
+
+        settingsWindow.Content = panel;
+        settingsWindow.ShowDialog();
+    }
+
+    private void LoadSettings()
+    {
+        try
+        {
+            var settingsPath = GetSettingsPath();
+            if (File.Exists(settingsPath))
+            {
+                var json = File.ReadAllText(settingsPath);
+                var settings = Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic>(json);
+                if (settings != null)
+                {
+                    _tripoApiKey = settings.TripoApiKey ?? "";
+                    _meshyApiKey = settings.MeshyApiKey ?? "";
+                }
+            }
+        }
+        catch { /* ignore */ }
+    }
+
+    private void SaveSettings()
+    {
+        try
+        {
+            var settings = new { TripoApiKey = _tripoApiKey, MeshyApiKey = _meshyApiKey };
+            var json = Newtonsoft.Json.JsonConvert.SerializeObject(settings);
+            File.WriteAllText(GetSettingsPath(), json);
+        }
+        catch { /* ignore */ }
+    }
+
+    private string GetSettingsPath()
+    {
+        var dir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "City3DDesktop");
+        Directory.CreateDirectory(dir);
+        return Path.Combine(dir, "settings.json");
+    }
+
+    // ===== 工具方法 =====
+    private void UpdateStatus(string message) => StatusText.Text = message;
+
+    private void ShowError(string message)
+    {
+        MessageBox.Show(message, "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+    }
+
+    private void ShowWarning(string message)
+    {
+        MessageBox.Show(message, "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
     }
 
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
-        _cancellationTokenSource?.Cancel();
+        _cts?.Cancel();
         base.OnClosing(e);
     }
 }

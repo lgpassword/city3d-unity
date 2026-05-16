@@ -13,7 +13,9 @@
       "Bash(start bin/Debug/net8.0-windows/City3DDesktop.exe)",
       "Bash(taskkill *)",
       "Bash(git reset *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(tasklist)",
+      "Bash(start \"\" \"bin\\\\Debug\\\\net8.0-windows\\\\City3DDesktop.exe\")"
     ]
   }
 }
