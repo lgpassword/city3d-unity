@@ -1,10 +1,12 @@
 <Window x:Class="City3DDesktop.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:City3DDesktop.Controls"
         Title="城市3D场景生成器"
         Height="800" Width="1400"
         WindowStartupLocation="CenterScreen"
-        Background="{StaticResource BackgroundBrush}">
+        Background="{StaticResource BackgroundBrush}"
+        Closing="Window_Closing">
 
     <Grid>
         <Grid.RowDefinitions>
@@ -153,28 +155,9 @@
                 </StackPanel>
             </ScrollViewer>
 
-            <!-- 中间面板 - 3D视图占位 -->
+            <!-- 中间面板 - Unity 3D视图 -->
             <Border Grid.Column="1" Style="{StaticResource Card}">
-                <Grid>
-                    <Border Background="#FAFAFA" CornerRadius="4">
-                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                            <TextBlock Text="🏗️"
-                                      FontSize="80"
-                                      HorizontalAlignment="Center"
-                                      Margin="0,0,0,24"/>
-                            <TextBlock Text="3D 场景视图"
-                                       FontSize="24"
-                                       FontWeight="Light"
-                                       Foreground="{StaticResource SecondaryTextBrush}"
-                                       HorizontalAlignment="Center"/>
-                            <TextBlock Text="生成场景后将在此显示"
-                                       FontSize="14"
-                                       Foreground="{StaticResource SecondaryTextBrush}"
-                                       HorizontalAlignment="Center"
-                                       Margin="0,8,0,0"/>
-                        </StackPanel>
-                    </Border>
-                </Grid>
+                <controls:UnityViewport x:Name="UnityView"/>
             </Border>
 
             <!-- 右侧面板 - 列表 -->

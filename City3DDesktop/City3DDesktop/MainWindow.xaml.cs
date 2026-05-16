@@ -3,6 +3,7 @@ using System.Windows.Media.Imaging;
 using Microsoft.Win32;
 using City3DDesktop.Services;
 using City3DDesktop.Models;
+using System.IO;
 
 namespace City3DDesktop;
 
@@ -13,6 +14,7 @@ public partial class MainWindow : Window
     private readonly OsmService _osmService;
     private readonly ElevationService _elevationService;
     private CancellationTokenSource? _cancellationTokenSource;
+    private bool _unityInitialized = false;
 
     public MainWindow()
     {
@@ -25,6 +27,59 @@ public partial class MainWindow : Window
 
         LoadSavedData();
         UpdateStatus("就绪");
+
+        // 异步初始化Unity
+        Loaded += async (s, e) => await InitializeUnityAsync();
+    }
+
+    private async Task InitializeUnityAsync()
+    {
+        try
+        {
+            UpdateStatus("正在启动Unity渲染引擎...");
+
+            // Unity可执行文件路径（需要先构建Unity项目）
+            string unityExePath = Path.Combine(
+                AppDomain.CurrentDomain.BaseDirectory,
+                "UnityRenderer",
+                "City3D.exe"
+            );
+
+            // 如果Unity可执行文件不存在，显示提示
+            if (!File.Exists(unityExePath))
+            {
+                UpdateStatus("Unity渲染引擎未找到，请先构建Unity项目");
+                MessageBox.Show(
+                    "Unity渲染引擎未找到！\n\n" +
+                    "请按照以下步骤操作：\n" +
+                    "1. 在Unity中打开主项目\n" +
+                    "2. 选择 File > Build Settings\n" +
+                    "3. 选择 Windows 平台\n" +
+                    "4. 构建到: City3DDesktop/City3DDesktop/bin/Debug/net8.0-windows/UnityRenderer/\n" +
+                    "5. 重新启动此应用\n\n" +
+                    "当前查找路径: " + unityExePath,
+                    "Unity渲染引擎未找到",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            bool success = await UnityView.StartUnityAsync(unityExePath);
+            if (success)
+            {
+                _unityInitialized = true;
+                UpdateStatus("Unity渲染引擎已就绪");
+            }
+            else
+            {
+                UpdateStatus("Unity渲染引擎启动失败");
+            }
+        }
+        catch (Exception ex)
+        {
+            UpdateStatus($"Unity初始化失败: {ex.Message}");
+            MessageBox.Show($"Unity渲染引擎初始化失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private void LoadSavedData()
@@ -105,6 +160,32 @@ public partial class MainWindow : Window
             double elevation = await _elevationService.GetElevation(lat, lon, _cancellationTokenSource.Token);
 
             UpdateStatus($"场景生成完成！建筑物: {osmData.Buildings.Count}, 道路: {osmData.Roads.Count}, 海拔: {elevation:F1}m");
+
+            // 如果Unity已初始化，发送场景数据
+            if (_unityInitialized)
+            {
+                UpdateStatus("正在发送场景数据到Unity渲染引擎...");
+                var sceneData = new
+                {
+                    location = locationName,
+                    latitude = lat,
+                    longitude = lon,
+                    radius = radius,
+                    elevation = elevation,
+                    buildings = osmData.Buildings,
+                    roads = osmData.Roads
+                };
+
+                bool sent = await UnityView.SendSceneDataAsync(sceneData);
+                if (sent)
+                {
+                    UpdateStatus("场景已发送到Unity渲染引擎");
+                }
+                else
+                {
+                    UpdateStatus("发送场景数据失败");
+                }
+            }
 
             MessageBox.Show(
                 $"场景生成完成！\n\n" +
@@ -207,6 +288,12 @@ public partial class MainWindow : Window
     private void UpdateStatus(string message)
     {
         StatusText.Text = message;
+    }
+
+    private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+    {
+        _cancellationTokenSource?.Cancel();
+        UnityView.StopUnity();
     }
 
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)

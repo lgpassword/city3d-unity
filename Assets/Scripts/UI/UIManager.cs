@@ -118,7 +118,7 @@ public class UIManager : MonoBehaviour
     public void SetImagePreview(byte[] bytes)
     {
         var tex = new Texture2D(2, 2);
-        tex.LoadImage(bytes);
+        ImageConversion.LoadImage(tex, bytes);
         Preview.texture = tex;
     }
 

@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(gsd-progress)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(mkdir -p City3DDesktop)",
+      "Bash(dotnet new *)",
+      "Bash(dotnet add *)",
+      "Bash(dotnet build *2)",
+      "Bash(dotnet build *)",
+      "Bash(dotnet run *)",
+      "Bash(start bin/Debug/net8.0-windows/City3DDesktop.exe)",
+      "Bash(taskkill *)",
+      "Bash(git reset *)",
+      "Bash(git push *)"
+    ]
+  }
+}
