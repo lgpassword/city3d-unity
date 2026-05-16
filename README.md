@@ -8,10 +8,17 @@ City3D Unity 是一个 Unity 单进程城市场景生成工程。项目通过本
 
 本工程面向城市可视化、地理信息展示、Unity 程序化建模和 AI 识别集成示例。克隆后用 Unity 打开仓库根目录，启动本地识别服务，即可点击 Play 运行。
 
+### 项目版本
+
+本项目提供两个版本：
+
+1. **Unity 版本**（主项目）- 完整的 Unity 3D 场景生成器
+2. **WPF 桌面版本**（City3DDesktop/）- 独立的 Windows 桌面应用
+
 ### 核心功能
 
 - 从图片读取 EXIF GPS 坐标。
-- 调用本地 Python CLIP 服务识别图片对象。
+- 调用本地 Python CLIP 服务识别图片对象（Unity版）或使用 Ollama 本地 AI（WPF版）。
 - 调用 OSM Overpass API 获取建筑轮廓。
 - 调用 Open-Elevation API 获取海拔。
 - 使用 SQLite 缓存 OSM 查询和保存场景。
@@ -29,6 +36,8 @@ City3D Unity 是一个 Unity 单进程城市场景生成工程。项目通过本
 - 可访问 OSM Overpass API、Open-Elevation API 和 Hugging Face 模型下载源。
 
 ### 快速运行
+
+#### Unity 版本
 
 1. 克隆仓库。
 
@@ -52,6 +61,41 @@ python main.py
 4. 点击 Play。
 
 项目包含运行时自动引导逻辑。即使当前场景为空，点击 Play 后也会自动创建相机、灯光、AppManager、CitySceneBuilder 和完整 UGUI 控制面板。
+
+#### WPF 桌面版本
+
+1. 进入 WPF 项目目录。
+
+```bash
+cd City3DDesktop/City3DDesktop
+```
+
+2. 编译并运行。
+
+```bash
+dotnet build
+dotnet run
+```
+
+或直接运行编译后的可执行文件：
+```bash
+bin/Debug/net8.0-windows/City3DDesktop.exe
+```
+
+**系统要求：**
+- Windows 10/11
+- .NET 8.0 Runtime
+- Ollama（用于 AI 图片识别）
+
+**配置 Ollama：**
+```bash
+# 安装 llava 模型
+ollama pull llava
+# 启动服务
+ollama serve
+```
+
+详细说明见 [City3DDesktop/README.md](City3DDesktop/README.md)。
 
 ### 使用方式
 
@@ -78,6 +122,13 @@ Assets/
     ├── Mesh/
     ├── Network/
     └── UI/
+City3DDesktop/                    # WPF 桌面应用
+├── City3DDesktop/
+│   ├── Models/                   # 数据模型
+│   ├── Services/                 # 业务服务层
+│   ├── MainWindow.xaml           # 主窗口 UI
+│   └── City3DDesktop.csproj      # 项目配置
+└── README.md                     # WPF 版本说明
 services/recognition/
 ├── main.py
 └── requirements.txt
@@ -97,10 +148,17 @@ City3D Unity is a Unity-based city scene generation project that runs as a singl
 
 This project is designed as a practical example for city visualization, GIS-style presentation, procedural modeling in Unity, and AI recognition integration. Clone the repository, open the root folder with Unity, start the local recognition service, and press Play.
 
+### Project Versions
+
+This project provides two versions:
+
+1. **Unity Version** (Main Project) - Full Unity 3D scene generator
+2. **WPF Desktop Version** (City3DDesktop/) - Standalone Windows desktop application
+
 ### Features
 
 - Reads EXIF GPS coordinates from images.
-- Uses a local Python CLIP service for image recognition.
+- Uses a local Python CLIP service for image recognition (Unity) or Ollama local AI (WPF).
 - Fetches building footprints from OSM Overpass API.
 - Fetches elevation data from Open-Elevation API.
 - Uses SQLite for OSM caching and saved scenes.
@@ -118,6 +176,8 @@ This project is designed as a practical example for city visualization, GIS-styl
 - Network access to OSM Overpass API, Open-Elevation API, and Hugging Face model downloads.
 
 ### Quick Start
+
+#### Unity Version
 
 1. Clone the repository.
 
@@ -141,6 +201,41 @@ python main.py
 4. Press Play.
 
 The project includes runtime bootstrapping. Even if the scene is empty, pressing Play automatically creates the camera, light, AppManager, CitySceneBuilder, and the full UGUI control panel.
+
+#### WPF Desktop Version
+
+1. Navigate to the WPF project directory.
+
+```bash
+cd City3DDesktop/City3DDesktop
+```
+
+2. Build and run.
+
+```bash
+dotnet build
+dotnet run
+```
+
+Or run the compiled executable directly:
+```bash
+bin/Debug/net8.0-windows/City3DDesktop.exe
+```
+
+**Requirements:**
+- Windows 10/11
+- .NET 8.0 Runtime
+- Ollama (for AI image recognition)
+
+**Configure Ollama:**
+```bash
+# Install llava model
+ollama pull llava
+# Start service
+ollama serve
+```
+
+See [City3DDesktop/README.md](City3DDesktop/README.md) for details.
 
 ### Usage
 
@@ -167,6 +262,13 @@ Assets/
     ├── Mesh/
     ├── Network/
     └── UI/
+City3DDesktop/                    # WPF Desktop Application
+├── City3DDesktop/
+│   ├── Models/                   # Data models
+│   ├── Services/                 # Business service layer
+│   ├── MainWindow.xaml           # Main window UI
+│   └── City3DDesktop.csproj      # Project configuration
+└── README.md                     # WPF version documentation
 services/recognition/
 ├── main.py
 └── requirements.txt
