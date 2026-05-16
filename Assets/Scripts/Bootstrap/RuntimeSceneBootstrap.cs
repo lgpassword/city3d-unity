@@ -8,7 +8,7 @@ using UnityEngine.UI;
 public static class RuntimeSceneBootstrap
 {
     // 默认字体资源路径。
-    private const string DefaultFontPath = "Arial.ttf";
+    private const string DefaultFontPath = "LegacyRuntime.ttf";
 
     /// <summary>
     /// 场景加载后自动创建 City3D 所需对象。
@@ -78,6 +78,7 @@ public static class RuntimeSceneBootstrap
         var manager = managerObject.AddComponent<AppManager>();
         manager.sceneBuilder = builder;
         manager.ui = ui;
+        // 配置会在Awake中自动加载
     }
 
     // 创建屏幕空间画布。

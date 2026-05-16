@@ -50,6 +50,18 @@ public class AppManager : MonoBehaviour
     private void Awake()
     {
         I = this;
+
+        // 如果未分配配置，尝试从Resources加载默认配置。
+        if (config == null)
+        {
+            config = Resources.Load<AppConfig>("DefaultAppConfig");
+            if (config == null)
+            {
+                Debug.LogError("[AppManager] 未找到配置文件！请在Unity编辑器中创建AppConfig资源。");
+                return;
+            }
+        }
+
         _db = new DatabaseManager(config);
         _db.Initialize();
         _ai = new AiClient(config);
