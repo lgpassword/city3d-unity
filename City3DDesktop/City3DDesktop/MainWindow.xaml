@@ -138,18 +138,73 @@
                                           VerticalAlignment="Center"/>
                             </DockPanel>
 
-                            <TextBlock Text="AI引擎"
+                            <TextBlock Text="生成方式"
                                        FontSize="12"
                                        Foreground="{StaticResource SecondaryTextBrush}"
                                        Margin="0,0,0,4"/>
                             <ComboBox x:Name="AiProviderCombo"
                                       Padding="8"
                                       Margin="0,0,0,12"
-                                      SelectedIndex="0">
-                                <ComboBoxItem Content="演示模式 (本地生成示例)" Tag="Demo"/>
-                                <ComboBoxItem Content="Tripo3D (云端高质量)" Tag="Tripo3D"/>
-                                <ComboBoxItem Content="Meshy.ai (云端高质量)" Tag="Meshy"/>
+                                      SelectedIndex="0"
+                                      SelectionChanged="AiProviderCombo_SelectionChanged">
+                                <ComboBoxItem Content="🧮 本地算法 - 高度图 (推荐)" Tag="Local_HeightMap"/>
+                                <ComboBoxItem Content="🎨 本地算法 - 浮雕效果" Tag="Local_Relief"/>
+                                <ComboBoxItem Content="🟦 本地算法 - 体素化(像素风)" Tag="Local_Voxel"/>
+                                <ComboBoxItem Content="✏️ 本地算法 - 轮廓挤出" Tag="Local_Contour"/>
+                                <ComboBoxItem Content="🤖 演示模式 (示例房屋)" Tag="Demo"/>
+                                <ComboBoxItem Content="☁️ Tripo3D (云端AI)" Tag="Tripo3D"/>
+                                <ComboBoxItem Content="☁️ Meshy.ai (云端AI)" Tag="Meshy"/>
                             </ComboBox>
+
+                            <!-- 本地算法参数 -->
+                            <Expander x:Name="LocalParamsExpander"
+                                      Header="⚙️ 算法参数 (可选)"
+                                      IsExpanded="False"
+                                      Margin="0,0,0,12">
+                                <StackPanel Margin="0,8,0,0">
+                                    <TextBlock Text="网格分辨率" FontSize="11" Foreground="{StaticResource SecondaryTextBrush}"/>
+                                    <Grid Margin="0,2,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Slider x:Name="ResolutionSlider" Minimum="32" Maximum="256" Value="128" TickFrequency="32" IsSnapToTickEnabled="True"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding ElementName=ResolutionSlider, Path=Value, StringFormat={}{0:F0}}" MinWidth="40" TextAlignment="Right"/>
+                                    </Grid>
+
+                                    <TextBlock Text="模型高度" FontSize="11" Foreground="{StaticResource SecondaryTextBrush}"/>
+                                    <Grid Margin="0,2,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Slider x:Name="HeightSlider" Minimum="0.1" Maximum="3.0" Value="1.0" TickFrequency="0.1"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding ElementName=HeightSlider, Path=Value, StringFormat={}{0:F1}}" MinWidth="40" TextAlignment="Right"/>
+                                    </Grid>
+
+                                    <TextBlock Text="对比度增强" FontSize="11" Foreground="{StaticResource SecondaryTextBrush}"/>
+                                    <Grid Margin="0,2,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Slider x:Name="ContrastSlider" Minimum="0.5" Maximum="3.0" Value="1.0" TickFrequency="0.1"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding ElementName=ContrastSlider, Path=Value, StringFormat={}{0:F1}}" MinWidth="40" TextAlignment="Right"/>
+                                    </Grid>
+
+                                    <TextBlock Text="平滑度" FontSize="11" Foreground="{StaticResource SecondaryTextBrush}"/>
+                                    <Grid Margin="0,2,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Slider x:Name="SmoothSlider" Minimum="0" Maximum="10" Value="1" TickFrequency="1" IsSnapToTickEnabled="True"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding ElementName=SmoothSlider, Path=Value, StringFormat={}{0:F0}}" MinWidth="40" TextAlignment="Right"/>
+                                    </Grid>
+
+                                    <CheckBox x:Name="InvertCheck" Content="反转高度 (暗→高)" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Expander>
 
                             <Button x:Name="GenerateBtn"
                                     Style="{StaticResource AccentButton}"

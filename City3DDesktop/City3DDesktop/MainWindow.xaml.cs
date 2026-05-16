@@ -12,6 +12,7 @@ namespace City3DDesktop;
 public partial class MainWindow : Window
 {
     private readonly Image23DService _aiService;
+    private readonly LocalImage23DService _localService;
     private readonly ModelExportService _exportService;
 
     private string? _imagePath;
@@ -19,7 +20,6 @@ public partial class MainWindow : Window
     private CancellationTokenSource? _cts;
     private bool _wireframeMode = false;
 
-    // 配置存储
     private string _tripoApiKey = "";
     private string _meshyApiKey = "";
 
@@ -27,10 +27,22 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         _aiService = new Image23DService();
+        _localService = new LocalImage23DService();
         _exportService = new ModelExportService();
 
         _aiService.ProgressChanged += OnProgressChanged;
+        _localService.ProgressChanged += OnProgressChanged;
         LoadSettings();
+    }
+
+    private void AiProviderCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (LocalParamsExpander == null) return;
+        var tag = ((ComboBoxItem)AiProviderCombo.SelectedItem).Tag.ToString() ?? "";
+        // 仅本地算法显示参数面板
+        LocalParamsExpander.Visibility = tag.StartsWith("Local_")
+            ? Visibility.Visible
+            : Visibility.Collapsed;
     }
 
     // ===== 步骤1: 加载图片 =====
@@ -76,29 +88,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        // 配置AI服务
-        var providerTag = ((ComboBoxItem)AiProviderCombo.SelectedItem).Tag.ToString();
-        var provider = providerTag switch
-        {
-            "Tripo3D" => Image23DService.AiProvider.Tripo3D,
-            "Meshy" => Image23DService.AiProvider.Meshy,
-            _ => Image23DService.AiProvider.Demo
-        };
-
-        var apiKey = provider switch
-        {
-            Image23DService.AiProvider.Tripo3D => _tripoApiKey,
-            Image23DService.AiProvider.Meshy => _meshyApiKey,
-            _ => ""
-        };
-
-        if (provider != Image23DService.AiProvider.Demo && string.IsNullOrEmpty(apiKey))
-        {
-            ShowWarning($"请先在'设置'中配置 {provider} 的 API Key\n\n或选择'演示模式'体验完整流程");
-            return;
-        }
-
-        _aiService.Configure(provider, apiKey);
+        var providerTag = ((ComboBoxItem)AiProviderCombo.SelectedItem).Tag.ToString() ?? "Demo";
 
         // 准备UI
         GenerateBtn.IsEnabled = false;
@@ -106,12 +96,59 @@ public partial class MainWindow : Window
         ProgressText.Visibility = Visibility.Visible;
         GenerateProgress.Value = 0;
         ExportBtn.IsEnabled = false;
-
         _cts = new CancellationTokenSource();
 
         try
         {
-            _generatedModelPath = await _aiService.GenerateModelAsync(_imagePath, _cts.Token);
+            if (providerTag.StartsWith("Local_"))
+            {
+                // 本地算法生成
+                var algo = providerTag switch
+                {
+                    "Local_Relief" => LocalImage23DService.Algorithm.Relief,
+                    "Local_Voxel" => LocalImage23DService.Algorithm.Voxel,
+                    "Local_Contour" => LocalImage23DService.Algorithm.ContourExtrusion,
+                    _ => LocalImage23DService.Algorithm.HeightMap
+                };
+
+                var options = new LocalImage23DService.GenerationOptions
+                {
+                    Algorithm = algo,
+                    Resolution = (int)ResolutionSlider.Value,
+                    MaxHeight = (float)HeightSlider.Value,
+                    ContrastBoost = (float)ContrastSlider.Value,
+                    Smoothness = (float)SmoothSlider.Value,
+                    Invert = InvertCheck.IsChecked == true
+                };
+
+                _generatedModelPath = await _localService.GenerateAsync(_imagePath, options, _cts.Token);
+            }
+            else
+            {
+                // 云端AI/演示模式
+                var provider = providerTag switch
+                {
+                    "Tripo3D" => Image23DService.AiProvider.Tripo3D,
+                    "Meshy" => Image23DService.AiProvider.Meshy,
+                    _ => Image23DService.AiProvider.Demo
+                };
+
+                var apiKey = provider switch
+                {
+                    Image23DService.AiProvider.Tripo3D => _tripoApiKey,
+                    Image23DService.AiProvider.Meshy => _meshyApiKey,
+                    _ => ""
+                };
+
+                if (provider != Image23DService.AiProvider.Demo && string.IsNullOrEmpty(apiKey))
+                {
+                    ShowWarning($"请先在'设置'中配置 {provider} 的 API Key\n\n或选择本地算法体验完整流程");
+                    return;
+                }
+
+                _aiService.Configure(provider, apiKey);
+                _generatedModelPath = await _aiService.GenerateModelAsync(_imagePath, _cts.Token);
+            }
 
             // 加载并显示生成的模型
             LoadModel(_generatedModelPath);
