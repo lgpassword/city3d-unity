@@ -147,7 +147,8 @@
                                       Margin="0,0,0,12"
                                       SelectedIndex="0"
                                       SelectionChanged="AiProviderCombo_SelectionChanged">
-                                <ComboBoxItem Content="🧮 本地算法 - 高度图 (推荐)" Tag="Local_HeightMap"/>
+                                <ComboBoxItem Content="🧠 智能生成 (AI识别+网络数据+算法) ⭐" Tag="Intelligent"/>
+                                <ComboBoxItem Content="🧮 本地算法 - 高度图" Tag="Local_HeightMap"/>
                                 <ComboBoxItem Content="🎨 本地算法 - 浮雕效果" Tag="Local_Relief"/>
                                 <ComboBoxItem Content="🟦 本地算法 - 体素化(像素风)" Tag="Local_Voxel"/>
                                 <ComboBoxItem Content="✏️ 本地算法 - 轮廓挤出" Tag="Local_Contour"/>
@@ -203,6 +204,71 @@
                                     </Grid>
 
                                     <CheckBox x:Name="InvertCheck" Content="反转高度 (暗→高)" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Expander>
+
+                            <!-- 智能生成参数 -->
+                            <Expander x:Name="IntelligentParamsExpander"
+                                      Header="🧠 智能生成配置"
+                                      IsExpanded="True"
+                                      Margin="0,0,0,12"
+                                      Visibility="Collapsed">
+                                <StackPanel Margin="0,8,0,0">
+                                    <TextBlock Text="视觉识别API" FontSize="11" Foreground="{StaticResource SecondaryTextBrush}"/>
+                                    <ComboBox x:Name="VisionProviderCombo" Margin="0,2,0,8" SelectedIndex="0">
+                                        <ComboBoxItem Content="豆包 (字节跳动)" Tag="Doubao"/>
+                                        <ComboBoxItem Content="DeepSeek" Tag="DeepSeek"/>
+                                    </ComboBox>
+
+                                    <TextBlock Text="API密钥" FontSize="11" Foreground="{StaticResource SecondaryTextBrush}"/>
+                                    <TextBox x:Name="VisionApiKeyBox"
+                                             Margin="0,2,0,8"
+                                             Padding="8"
+                                             Text="请输入API密钥"/>
+
+                                    <TextBlock Text="生成质量" FontSize="11" Foreground="{StaticResource SecondaryTextBrush}"/>
+                                    <ComboBox x:Name="QualityCombo" Margin="0,2,0,8" SelectedIndex="3">
+                                        <ComboBoxItem Content="草图级 (快速预览)" Tag="Draft"/>
+                                        <ComboBoxItem Content="标准级 (一般用途)" Tag="Standard"/>
+                                        <ComboBoxItem Content="高质量 (专业用途)" Tag="High"/>
+                                        <ComboBoxItem Content="工业级 (最高质量)" Tag="Industrial"/>
+                                    </ComboBox>
+
+                                    <TextBlock Text="基础分辨率" FontSize="11" Foreground="{StaticResource SecondaryTextBrush}"/>
+                                    <Grid Margin="0,2,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Slider x:Name="IntelligentResolutionSlider" Minimum="64" Maximum="1024" Value="512" TickFrequency="64" IsSnapToTickEnabled="True"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding ElementName=IntelligentResolutionSlider, Path=Value, StringFormat={}{0:F0}}" MinWidth="50" TextAlignment="Right"/>
+                                    </Grid>
+
+                                    <TextBlock Text="细分级别 (工业级)" FontSize="11" Foreground="{StaticResource SecondaryTextBrush}"/>
+                                    <Grid Margin="0,2,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Slider x:Name="SubdivisionSlider" Minimum="0" Maximum="5" Value="3" TickFrequency="1" IsSnapToTickEnabled="True"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding ElementName=SubdivisionSlider, Path=Value, StringFormat={}{0:F0}}" MinWidth="50" TextAlignment="Right"/>
+                                    </Grid>
+
+                                    <CheckBox x:Name="EnableDetailSculptingCheck" Content="启用细节雕刻" IsChecked="True" Margin="0,4,0,2"/>
+                                    <CheckBox x:Name="EnableTextureMappingCheck" Content="启用纹理映射" IsChecked="True" Margin="0,2,0,2"/>
+                                    <CheckBox x:Name="EnableNormalMappingCheck" Content="启用法线贴图" IsChecked="True" Margin="0,2,0,2"/>
+                                    <CheckBox x:Name="EnablePBRCheck" Content="启用PBR材质" IsChecked="True" Margin="0,2,0,2"/>
+
+                                    <TextBlock Text="⏱️ 预计生成时间: 30-60分钟"
+                                               FontSize="10"
+                                               Foreground="#FF9800"
+                                               Margin="0,8,0,0"
+                                               TextWrapping="Wrap"/>
+                                    <TextBlock Text="💡 智能生成会自动识别图片内容，从网络收集真实尺寸和结构数据，生成工业级精度的3D模型"
+                                               FontSize="10"
+                                               Foreground="{StaticResource SecondaryTextBrush}"
+                                               Margin="0,4,0,0"
+                                               TextWrapping="Wrap"/>
                                 </StackPanel>
                             </Expander>
 

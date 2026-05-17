@@ -14,6 +14,7 @@ public partial class MainWindow : Window
     private readonly Image23DService _aiService;
     private readonly LocalImage23DService _localService;
     private readonly ModelExportService _exportService;
+    private readonly IntelligentModelGenerationService _intelligentService;
 
     private string? _imagePath;
     private string? _generatedModelPath;
@@ -29,6 +30,7 @@ public partial class MainWindow : Window
         _aiService = new Image23DService();
         _localService = new LocalImage23DService();
         _exportService = new ModelExportService();
+        _intelligentService = new IntelligentModelGenerationService();
 
         _aiService.ProgressChanged += OnProgressChanged;
         _localService.ProgressChanged += OnProgressChanged;
@@ -37,10 +39,15 @@ public partial class MainWindow : Window
 
     private void AiProviderCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (LocalParamsExpander == null) return;
+        if (LocalParamsExpander == null || IntelligentParamsExpander == null) return;
         var tag = ((ComboBoxItem)AiProviderCombo.SelectedItem).Tag.ToString() ?? "";
-        // 仅本地算法显示参数面板
+
+        // 根据选择显示对应的参数面板
         LocalParamsExpander.Visibility = tag.StartsWith("Local_")
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        IntelligentParamsExpander.Visibility = tag == "Intelligent"
             ? Visibility.Visible
             : Visibility.Collapsed;
     }
@@ -100,7 +107,65 @@ public partial class MainWindow : Window
 
         try
         {
-            if (providerTag.StartsWith("Local_"))
+            if (providerTag == "Intelligent")
+            {
+                // 智能生成
+                var visionProvider = ((ComboBoxItem)VisionProviderCombo.SelectedItem).Tag.ToString() == "DeepSeek"
+                    ? VisionRecognitionService.Provider.DeepSeek
+                    : VisionRecognitionService.Provider.Doubao;
+
+                var apiKey = VisionApiKeyBox.Text;
+                if (string.IsNullOrWhiteSpace(apiKey) || apiKey == "请输入API密钥")
+                {
+                    ShowWarning("请输入视觉识别API密钥\n\n豆包: https://console.volcengine.com/ark\nDeepSeek: https://platform.deepseek.com");
+                    return;
+                }
+
+                var quality = ((ComboBoxItem)QualityCombo.SelectedItem).Tag.ToString() switch
+                {
+                    "Draft" => QualityLevel.Draft,
+                    "Standard" => QualityLevel.Standard,
+                    "High" => QualityLevel.High,
+                    _ => QualityLevel.Industrial
+                };
+
+                var config = new GenerationConfig
+                {
+                    VisionProvider = visionProvider,
+                    VisionApiKey = apiKey,
+                    Quality = quality,
+                    Resolution = (int)IntelligentResolutionSlider.Value,
+                    SubdivisionLevel = (int)SubdivisionSlider.Value,
+                    EnableDetailSculpting = EnableDetailSculptingCheck.IsChecked == true,
+                    EnableTextureMapping = EnableTextureMappingCheck.IsChecked == true,
+                    EnableNormalMapping = EnableNormalMappingCheck.IsChecked == true,
+                    EnablePBRMaterials = EnablePBRCheck.IsChecked == true,
+                    MaxGenerationTimeMinutes = 60,
+                    UseMultiThreading = true
+                };
+
+                UpdateStatus("🧠 开始智能生成...");
+                _generatedModelPath = await _intelligentService.GenerateFromImageAsync(
+                    _imagePath,
+                    config,
+                    (message, progress) =>
+                    {
+                        Dispatcher.Invoke(() =>
+                        {
+                            if (progress >= 0)
+                            {
+                                GenerateProgress.Value = progress;
+                                ProgressText.Text = $"{message} ({progress}%)";
+                            }
+                            else
+                            {
+                                ProgressText.Text = message;
+                            }
+                        });
+                    }
+                );
+            }
+            else if (providerTag.StartsWith("Local_"))
             {
                 // 本地算法生成
                 var algo = providerTag switch
