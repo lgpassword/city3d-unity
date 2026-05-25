@@ -33,15 +33,23 @@
                               FontSize="11"
                               Margin="12,4,0,0"/>
                 </StackPanel>
-                <Button Content="⚙️ 设置"
-                        DockPanel.Dock="Right"
-                        HorizontalAlignment="Right"
-                        Background="Transparent"
-                        Foreground="White"
-                        BorderThickness="1"
-                        BorderBrush="White"
-                        Padding="12,4"
-                        Click="Settings_Click"/>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="🏙️ 数字孪生"
+                            Background="Transparent"
+                            Foreground="White"
+                            BorderThickness="1"
+                            BorderBrush="White"
+                            Padding="12,4"
+                            Margin="0,0,8,0"
+                            Click="DigitalTwin_Click"/>
+                    <Button Content="⚙️ 设置"
+                            Background="Transparent"
+                            Foreground="White"
+                            BorderThickness="1"
+                            BorderBrush="White"
+                            Padding="12,4"
+                            Click="Settings_Click"/>
+                </StackPanel>
             </DockPanel>
         </Border>
 

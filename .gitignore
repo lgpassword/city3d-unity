@@ -1,35 +1,26 @@
-[Ll]ibrary/
-[Tt]emp/
-[Oo]bj/
-[Bb]uild/
-[Bb]uilds/
-[Ll]ogs/
-[Uu]ser[Ss]ettings/
-
-*.csproj
-*.sln
-*.user
-*.userprefs
-*.pidb
-*.booproj
-*.svd
-*.pdb
-*.mdb
-*.opendb
-*.VC.db
-
-*.apk
-*.aab
-*.unitypackage
-
+## .NET / WPF
+bin/
+obj/
 .vs/
-.vscode/
+*.user
+*.suo
+*.cache
+*.DotSettings.user
+
+## Build
+*.nupkg
+publish/
+
+## Runtime data
+*.db
+
+## IDE
 .idea/
-.gradle/
+.vscode/
+*.swp
+*~
 
-sysinfo.txt
-*.stackdump
-
-services/recognition/.venv/
-services/recognition/__pycache__/
-*.pyc
+## OS
+Thumbs.db
+Desktop.ini
+.DS_Store

@@ -361,6 +361,12 @@ public partial class MainWindow : Window
         UpdateStatus(_wireframeMode ? "线框模式" : "实体模式");
     }
 
+    private void DigitalTwin_Click(object sender, RoutedEventArgs e)
+    {
+        var twin = new DigitalTwinWindow();
+        twin.Show();
+    }
+
     // ===== 设置 =====
     private void Settings_Click(object sender, RoutedEventArgs e)
     {
